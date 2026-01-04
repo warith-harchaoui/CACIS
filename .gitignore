@@ -2,7 +2,6 @@
 data/
 images/
 
-training_normalized_loss.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
