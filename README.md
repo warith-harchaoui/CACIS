@@ -37,15 +37,15 @@ CACIS follows a simple and robust decision rule:
 
 - **If a cost matrix $C$ is available at prediction time**:
   use **expected-cost minimization**
-  ```math
+```math
   \hat{k}(x,C) = \arg\min_k \sum_y q(y \mid x) c_{y,k}(C).
-  ```
+```
 
 - **If no cost matrix is available**:
   fall back to **standard probabilistic classification**
-  ```math
+```math
   \hat{y}(x) = \arg\max_y q(y \mid x).
-  ```
+```
 
 This design keeps CACIS usable across heterogeneous deployment contexts.
 
