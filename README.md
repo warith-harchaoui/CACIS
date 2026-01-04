@@ -22,8 +22,8 @@ CACIS provides a principled alternative.
 
 ## Core Idea
 
-Given data \((x_i,y_i,C_i)\), CACIS learns a calibrated predictive distribution
-\(q(y \mid x)\)
+Given data $(x_i,y_i,C_i)$, CACIS learns a calibrated predictive distribution
+$q(y \mid x)$
 using a **cost-aware Fenchel–Young loss** derived from
 entropy-regularized optimal transport.
 
@@ -35,17 +35,17 @@ Decisions are made **only at inference time**, using costs when available.
 
 CACIS follows a simple and robust decision rule:
 
-- **If a cost matrix \(C\) is available at prediction time**:
+- **If a cost matrix $C$ is available at prediction time**:
   use **expected-cost minimization**
-  \[
+  ```math
   \hat{k}(x,C) = \arg\min_k \sum_y q(y \mid x) c_{y,k}(C).
-  \]
+  ```
 
 - **If no cost matrix is available**:
   fall back to **standard probabilistic classification**
-  \[
+  ```math
   \hat{y}(x) = \arg\max_y q(y \mid x).
-  \]
+  ```
 
 This design keeps CACIS usable across heterogeneous deployment contexts.
 
@@ -56,7 +56,7 @@ This design keeps CACIS usable across heterogeneous deployment contexts.
 ### Loss
 - Convex, proper, score-based loss
 - Example-dependent cost matrices during training
-- Scale-aware regularization \(\varepsilon_i\)
+- Scale-aware regularization $\varepsilon_i$
 - Reduces to cross-entropy for uniform costs
 
 ### Training & Prediction
