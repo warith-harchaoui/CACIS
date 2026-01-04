@@ -71,16 +71,21 @@ This design keeps CACIS usable across heterogeneous deployment contexts.
 
 ## Project Structure
 
+The project is organized as a standard Python package:
+
 ```
 cacis/
-├── cacis/
-│   ├── torch/
-│   ├── core/
-│   └── uncertainty/
-├── examples/
-├── tests/
-├── README.md
-└── math.md
+├── cacis/                  # Main package
+│   ├── __init__.py         # Package exports
+│   └── nn/                 # Neural Network modules
+│       ├── __init__.py     # Exposes CACISLoss
+│       ├── loss.py         # CACISLoss class
+│       └── ot.py           # Sinkhorn solver
+├── examples/               # Usage examples
+├── tests/                  # Unit tests
+├── README.md               # Project documentation
+├── math.md                 # Mathematical foundations
+└── requirements.txt        # Dependencies
 ```
 
 ---
