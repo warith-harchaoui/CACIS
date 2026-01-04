@@ -9,9 +9,9 @@ It is written for applied ML researchers, engineers, and decision scientists.
 ## 1. Problem Setting
 
 We observe i.i.d. triples
-\[
+```math
 (X, C, Y) \sim \mathcal{D},
-\]
+```
 where:
 - \(Y \in \{1, \dots, K\}\) is the true class,
 - \(C \in \mathbb{R}_+^{K \times K}\) is a misclassification cost matrix with \(c_{y,y}=0\),
