@@ -252,6 +252,9 @@ def main():
 
     ell = []
 
+    epoch_iteration = []
+
+    iter = 0 
     for epoch in range(epochs):
         model.train()
         total_raw = 0.0
@@ -280,22 +283,33 @@ def main():
             total_raw += loss.item()
             total_norm += loss_norm.item()
 
+            iter += 1
+
+        # logging.info(
+        #     "Epoch %02d | CACIS raw: %.4f | CACIS normalized: %.4f",
+        #     epoch + 1,
+        #     total_raw / len(train_loader),
+        #     total_norm / len(train_loader),
+        # )
+
         logging.info(
-            "Epoch %02d | CACIS raw: %.4f | CACIS normalized: %.4f",
+            "Epoch %02d | CACIS normalized: %.4f",
             epoch + 1,
-            total_raw / len(train_loader),
             total_norm / len(train_loader),
         )
+        epoch_iteration.append(iter)
+
 
         np.savetxt("images/training_normalized_loss.txt", ell)
 
         # plot training normalized loss
         plt.figure(figsize=(8, 6))
-        plt.plot(ell, label="CACIS normalized loss")
-        # By construction, the normalized CACIS baseline is 1.0.
-        # This baseline is *cost-aware* (depends on C) and reduces to uniform
-        # guessing only in the special case C = 1 - I.
-        plt.plot(np.arange(len(ell)), np.ones(len(ell)), label="Cost-aware baseline (normalized = 1)")
+        plt.plot(ell, label="CACIS normalized loss", color="#007AFF")
+        plt.axhline(y=1, color="#FF3B30", linestyle="--", label="Cost-aware baseline (normalized = 1)")
+        b = True
+        for it in epoch_iteration:
+            plt.axvline(x=it, color="gray", linestyle="--", label="Epoch" if b else None)
+            b = False
         plt.legend()
         plt.xlabel("Iteration")
         plt.ylabel("Training normalized loss")
