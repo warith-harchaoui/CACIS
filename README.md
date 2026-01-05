@@ -1,119 +1,131 @@
 # CACIS — Cost-Aware Classification with Informative Selection
 
-**CACIS** is an open-source framework for **decision-theoretic classification**
-with **example-dependent misclassification costs** expressed in real-world units
-(euros, energy, time, risk).
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![PyTorch 2.0+](https://img.shields.io/badge/pytorch-2.0+-ee4c2c.svg)](https://pytorch.org/)
 
-Accuracy is not the objective — **decisions with costs are**.
+**CACIS** is an open-source framework for **decision-theoretic classification** with **example-dependent misclassification costs** expressed in real-world units (euros, energy, time, risk).
 
----
-
-## Motivation
-
-In real-world AI systems:
-- misclassification costs vary per example,
-- costs are sometimes known only at decision time,
-- accuracy is often a misleading proxy for business value.
-
-Standard losses (cross-entropy, weighted CE) do not model this reality.
-CACIS provides a principled alternative.
+> **Accuracy is not the objective — decisions with costs are.**
 
 ---
 
-## Core Idea
+## 💡 Motivation
 
-Given data $(x_i,y_i,C_i)$, CACIS learns a calibrated predictive distribution
-$q(y \mid x)$
-using a **cost-aware Fenchel–Young loss** derived from
-entropy-regularized optimal transport.
+In real-world AI systems (healthcare, finance, robotics):
+- **Misclassification costs vary per example**: A false negative for a rare disease is costlier than for a common cold.
+- **Costs are dynamic**: Costs might only be known at decision time (e.g., market prices).
+- **Accuracy is a proxy**: Standard metrics often fail to capture the true business or safety impact of a decision.
 
-Decisions are made **only at inference time**, using costs when available.
+Standard losses like Cross-Entropy assume uniform costs. CACIS provides a principled alternative derived from **Optimal Transport** and **Fenchel–Young Losses**.
 
 ---
 
-## Inference Policy
+## 🧠 Core Idea
 
-CACIS follows a simple and robust decision rule:
+Given data $(x_i, y_i, C_i)$, CACIS learns a calibrated predictive distribution $q(y \mid x)$ using a **cost-aware Fenchel–Young loss** regularized by entropy-regularized optimal transport.
 
-- **If a cost matrix $C$ is available at prediction time**:
-  use **expected-cost minimization**
-```math
-  \hat{k}(x,C) = \arg\min_k \sum_y q(y \mid x) c_{y,k}(C).
+### Inference Policy
+
+CACIS decouples learning from decision-making, allowing flexibility at inference time:
+
+1. **If a cost matrix $C$ is available**: use **expected-cost minimization**
+   ```math
+   \hat{k}(x, C) = \arg\min_k \sum_y q(y \mid x) \; c_{y,k}(C).
+   ```
+2. **If no cost matrix is available**: fall back to **standard probablistic classification**
+   ```math
+   \hat{y}(x) = \arg\max_y q(y \mid x).
+   ```
+
+For a deep dive into the math, see [math.md](math.md).
+
+---
+
+## 🚀 Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/warith-harchaoui/cacis.git
+cd cacis
+
+# Install the package
+pip install -e .
 ```
 
-- **If no cost matrix is available**:
-  fall back to **standard probabilistic classification**
-```math
-  \hat{y}(x) = \arg\max_y q(y \mid x).
-```
+### Basic Usage
 
-This design keeps CACIS usable across heterogeneous deployment contexts.
+```python
+import torch
+from cacis import CACISLoss
+
+# Model scores (B, K)
+logits = torch.randn(8, 10, requires_grad=True) 
+# Ground truth labels (B,)
+labels = torch.randint(0, 10, (8,))
+# Example-dependent cost matrices (B, K, K)
+costs = torch.rand(8, 10, 10)
+
+criterion = CACISLoss()
+loss = criterion(logits, labels, C=costs)
+loss.backward()
+```
 
 ---
 
-## What CACIS Provides
+## 🖼️ Featured Demo: ResNet on CIFAR-10
 
-### Loss
-- Convex, proper, score-based loss
-- Example-dependent cost matrices during training
-- Scale-aware regularization $\varepsilon_i$
-- Reduces to cross-entropy for uniform costs
+We provide a comprehensive example using **fastText** semantic embeddings to define costs on CIFAR-10. This demo shows how mistakes between "similar" classes (e.g., Cat vs Dog) are penalized less than mistakes between "distant" classes (e.g., Cat vs Truck).
 
-### Training & Prediction
-- Model-agnostic (linear models, neural networks)
-- Explicit separation between learning and decision
+```bash
+python image_classification.py
+```
 
-### Uncertainty
-- Cost-aware conformal prediction
-- Example-wise confidence bounds on realized cost
+**What this demo provides:**
+- Automatic download of fastText vectors.
+- Semantic cost matrix generation based on word embeddings.
+- Training a ResNet18 with CACIS loss.
+- **Real-time visualizations**:
+  - `images/cost_matrix.png`: The semantic distance structure.
+  - `images/loss_trajectory.png`: Optimization progress (normalized CACIS loss).
+  - `images/confusion_matrix_epoch_N.png`: Class-wise performance.
+  - `images/confusion_matrix_grouped_epoch_N.png`: High-level "Animal vs Vehicle" performance.
 
 ---
 
-## Project Structure
+## 📂 Project Structure
 
-The project is organized as a standard Python package:
-
-```
+```text
 cacis/
-├── cacis/                  # Main package
-│   ├── __init__.py         # Package exports
-│   └── nn/                 # Neural Network modules
-│       ├── __init__.py     # Exposes CACISLoss
-│       ├── loss.py         # CACISLoss class
-│       └── ot.py           # Sinkhorn solver
-├── examples/               # Usage examples
+├── cacis/                  # Core package
+│   ├── nn/                 # Neural Network modules
+│   │   ├── __init__.py
+│   │   └── loss.py         # CACISLoss implementation
+│   └── __init__.py         # Public API
+├── image_classification.py # Image classification demo
+├── fraud_detection.py      # Fraud detection demo
 ├── tests/                  # Unit tests
-├── README.md               # Project documentation
-├── math.md                 # Mathematical foundations
+├── utils.py                # Shared utilities
+├── math.md                 # Mathematical derivations
+├── setup.py                # Package configuration
 └── requirements.txt        # Dependencies
 ```
 
 ---
 
-## Roadmap
+## 🗺️ Roadmap
 
-- [x] Mathematical formulation
-- [ ] PyTorch loss implementation
-- [ ] Training examples
-- [ ] sklearn-compatible API
+- [x] Mathematical formulation & Fenchel–Young derivation
+- [x] PyTorch `CACISLoss` implementation
+- [x] Comprehensive training examples (CIFAR-10 / fastText)
+- [ ] scikit-learn compatible `CACISClassifier`
 - [ ] Cost-aware conformal uncertainty
-- [ ] Tech report and applied dissemination
+- [ ] Technical report / Whitepaper
 
 ---
 
-## Positioning
+## ⚖️ License
 
-CACIS sits at the intersection of:
-- decision theory,
-- cost-sensitive learning,
-- optimal transport,
-- applied machine learning.
-
-It aligns with the **scikit-learn / probabl.ai** philosophy:
-clarity, correctness, and practical relevance.
-
----
-
-## License
-
-BSD 3-Clause License
+BSD 3-Clause License. See [LICENSE](LICENSE) for details.
