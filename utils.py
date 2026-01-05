@@ -138,7 +138,7 @@ def moving_average(input_x: np.ndarray, window_size: int, axis: int = 0) -> np.n
 def plot_loss_trajectory(
     state: TrainingState,
     *,
-    out_path: PathLike = "images/loss_trajectory.png",
+    out_path: str = "images/loss_trajectory.png",
     title: str = "CACIS Normalized Loss",
     ylabel: str = "Loss",
     ma_window: Optional[int] = 20,
@@ -170,8 +170,6 @@ def plot_loss_trajectory(
     -----
     This function saves directly to disk and closes the figure.
     """
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
 
     plt.figure(figsize=(18, 6))
 

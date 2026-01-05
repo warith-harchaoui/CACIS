@@ -50,6 +50,7 @@ from tqdm import tqdm
 from cacis.nn.loss import CACISLoss
 from utils import TrainingState, get_device, plot_loss_trajectory, setup_logging
 
+import os
 
 # ============================================================
 # Constants & Configuration
@@ -61,7 +62,6 @@ FASTTEXT_MODEL_PATH = FASTTEXT_DIR / "cc.en.300.bin"
 # NOTE: you can replace this URL with the official fastText URL if preferred.
 FASTTEXT_URL = "https://deraison.ai/ai/cc.en.300.bin"
 
-IMAGES_DIR = Path("images")
 
 ANIMALS = {"bird", "cat", "deer", "dog", "frog", "horse"}
 VEHICLES = {"airplane", "automobile", "ship", "truck"}
@@ -160,13 +160,16 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=64, help="Mini-batch size")
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--quick", action="store_true", help="Quick run (few batches)")
+    parser.add_argument("--out", default="images_output", help="Output directory")
     args = parser.parse_args()
 
     setup_logging()
     device = get_device()
     logging.info("Using device: %s", device)
 
-    IMAGES_DIR.mkdir(exist_ok=True)
+    OUTPUT_DIR = args.out
+    if not os.path.exists(OUTPUT_DIR):
+        Path(OUTPUT_DIR).mkdir(exist_ok=True)
 
     # --------------------------------------------------------
     # Data
@@ -175,10 +178,20 @@ def main() -> None:
         transforms.Resize(224),
         transforms.ToTensor(),
     ])
-    trainset = datasets.CIFAR10(root="./data", train=True, download=True, transform=transform)
-    testset = datasets.CIFAR10(root="./data", train=False, download=True, transform=transform)
+    data_folder = os.path.join(OUTPUT_DIR, "data")
+    if not os.path.exists(data_folder):
+        Path(data_folder).mkdir(exist_ok=True)
 
+    train_folder = os.path.join(data_folder, "train")
+    if not os.path.exists(train_folder):
+        Path(train_folder).mkdir(exist_ok=True)
+    trainset = datasets.CIFAR10(root=train_folder, train=True, download=True, transform=transform)
     train_loader = DataLoader(trainset, batch_size=args.batch_size, shuffle=True)
+    
+    test_folder = os.path.join(data_folder, "test")
+    if not os.path.exists(test_folder):
+        Path(test_folder).mkdir(exist_ok=True)
+    testset = datasets.CIFAR10(root=test_folder, train=False, download=True, transform=transform)
     test_loader = DataLoader(testset, batch_size=args.batch_size, shuffle=False)
 
     class_names = trainset.classes
@@ -198,7 +211,8 @@ def main() -> None:
                 xticklabels=class_names, yticklabels=class_names)
     plt.title("Semantic cost matrix (fastText)")
     plt.tight_layout()
-    plt.savefig(IMAGES_DIR / "cost_matrix.png")
+    im_path = os.path.join(OUTPUT_DIR, "cost_matrix.png")
+    plt.savefig(im_path)
     plt.close()
 
     # --------------------------------------------------------
@@ -284,7 +298,7 @@ def main() -> None:
         # Plot loss trajectory
         plot_loss_trajectory(
             state,
-            out_path=IMAGES_DIR / "loss_trajectory.png",
+            out_path = os.path.join(OUTPUT_DIR, "loss_trajectory.png"),
             title="Optimization Trajectory for CIFAR-10 + ResNet18 with fastText semantic costs",
         )
 
@@ -295,7 +309,7 @@ def main() -> None:
                     xticklabels=class_names, yticklabels=class_names)
         plt.title(f"Confusion matrix (epoch {epoch+1})")
         plt.tight_layout()
-        plt.savefig(IMAGES_DIR / f"confusion_matrix_{epoch+1}.png")
+        plt.savefig(OUTPUT_DIR / f"confusion_matrix_{epoch+1}.png")
         plt.close()
 
         cm_group = grouped_confusion_matrix(cm, class_names)
@@ -304,7 +318,7 @@ def main() -> None:
                     xticklabels=["Animal", "Vehicle"], yticklabels=["Animal", "Vehicle"])
         plt.title(f"Grouped confusion (epoch {epoch+1})")
         plt.tight_layout()
-        plt.savefig(IMAGES_DIR / f"confusion_matrix_grouped_{epoch+1}.png")
+        plt.savefig(OUTPUT_DIR / f"confusion_matrix_grouped_{epoch+1}.png")
         plt.close()
 
     logging.info("Training finished.")

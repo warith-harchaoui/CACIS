@@ -63,12 +63,12 @@ from tqdm import tqdm
 from cacis.nn.loss import CACISLoss
 from utils import TrainingState, get_device, plot_loss_trajectory, setup_logging
 
+import os
 
 # ============================================================
 # Constants & configuration
 # ============================================================
 
-OUTPUT_DIR = "fraud_output"
 
 # Economic parameters (edit for your context)
 FP_COST_EURO = 5.0   # cost of manual review (false positive)
@@ -154,7 +154,7 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=512, help="Mini-batch size")
     parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
     parser.add_argument("--quick", action="store_true", help="Quick run (few batches)")
-    parser.add_argument("--out", type=str, default=OUTPUT_DIR, help="Output directory")
+    parser.add_argument("--out", type=str, default="fraud_output", help="Output directory")
     args = parser.parse_args()
 
     setup_logging()
@@ -171,7 +171,7 @@ def main() -> None:
     # --------------------------------------------------------
     data_folder = "ieee-fraud-detection"
     data_files = ["train_transaction.csv", "test_transaction.csv"]
-    data_files = [os.join(data_folder, f) for f in data_files]
+    data_files = [os.path.join(data_folder, f) for f in data_files]
     dwnld_msg = "rm -rf ieee-fraud-detection.zip ieee-fraud-detection || true\nmkdir ieee-fraud-detection\nwget -c http://deraison.ai/ai/ieee-fraud-detection.zip\nunzip ieee-fraud-detection.zip -d ieee-fraud-detection"
     for f in data_files:
         if not Path(f).exists():
@@ -221,7 +221,7 @@ def main() -> None:
     model = LogisticModel(len(feature_cols)).to(device)
 
     # CACIS loss: returns (loss_tensor, loss_norm_float) in one call.
-    cacis_loss = CACISLoss(efpsilon_mode="offdiag_max", solver_iter=30)
+    cacis_loss = CACISLoss(epsilon_mode="offdiag_max", solver_iter=30)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
@@ -264,7 +264,7 @@ def main() -> None:
 
         plot_loss_trajectory(
             state,
-            out_path=os.join(OUTPUT_DIR, "fraud_loss_trajectory.png"),
+            out_path=os.path.join(OUTPUT_DIR, "fraud_loss_trajectory.png"),
             title="CACIS Normalized Loss — IEEE-CIS Fraud Detection",
         )
 
@@ -282,7 +282,7 @@ def main() -> None:
             p = torch.softmax(s, dim=1)[:, 1]
             probs.extend(p.cpu().numpy().tolist())
 
-    out_csv = os.join(OUTPUT_DIR, "test_predictions.csv")
+    out_csv = os.path.join(OUTPUT_DIR, "test_predictions.csv")
     if "TransactionID" in test_df.columns:
         submission = pd.DataFrame({"TransactionID": test_df["TransactionID"].values, "isFraud": probs})
     else:
