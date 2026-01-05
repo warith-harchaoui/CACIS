@@ -1,7 +1,17 @@
 # Folders
 data/
 images/
+fraud_output/
+ieee-fraud-detection/
+examples/
 
+# Some of my hidden files
+.DS_Store
+*/.DS_Store
+*.old
+*.not
+*.working
+ieee-fraud-detection.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
