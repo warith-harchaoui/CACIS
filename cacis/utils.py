@@ -143,6 +143,7 @@ def plot_loss_trajectory(
     ylabel: str = "Loss",
     ma_window: Optional[int] = 20,
     normalize: bool = True,
+    crop: bool = False,
 ) -> None:
     """
     Plot a CACIS loss trajectory.
@@ -209,7 +210,10 @@ def plot_loss_trajectory(
         plt.axhline(1.0, linestyle="--", label="Cost-aware random guessing (1.0)", color="#FF3B30")
         y_limits = (-0.1, 1.2)
     else:
-        M = np.quantile(np.array(list(values)), 0.90)
+        if crop:
+            M = np.quantile(np.array(list(values)), 0.90)
+        else:
+            M = np.max(np.array(list(values)))
         y_limits = (-0.1 * M, 1.2 * M)
 
     plt.axhline(0.0, linestyle="--", label="Perfect (0.0)", color="#28CD41")

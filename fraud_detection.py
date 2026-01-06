@@ -312,7 +312,8 @@ if __name__ == "__main__":
             out_path = os.path.join(OUTPUT_DIR, "loss_trajectory.png"),
             title="Optimization Trajectory for IEEE-CIS Fraud Detection",
             normalize=False,
-            ma_window=100
+            ma_window=100,
+            crop=True,
         )
 
 

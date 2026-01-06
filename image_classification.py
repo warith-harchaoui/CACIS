@@ -302,10 +302,12 @@ def main() -> None:
                 x, y = x.to(device), y.to(device)
                 scores = model(x)
 
-                loss, loss_norm = cacis_loss(scores, y, C=cost_matrix)
+                loss, loss_norm, _ = cacis_loss(scores, y, C=cost_matrix, normalize = normalization)
                 ell = loss
                 if normalization:
                     ell = loss_norm
+
+                ell = ell.item()
 
                 test_sum += ell
                 test_steps += 1
@@ -324,6 +326,8 @@ def main() -> None:
             state,
             out_path = os.path.join(OUTPUT_DIR, "loss_trajectory.png"),
             title="Optimization Trajectory for CIFAR-10 + ResNet18 with fastText semantic costs",
+            ma_window=50,
+            crop = False,
         )
 
         # Confusion matrices

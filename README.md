@@ -21,30 +21,22 @@ Standard losses like Cross-Entropy assume uniform costs. CACIS provides a princi
 
 ---
 
-## 🧠 Core Idea
+## 🧠 Scientific Foundations
 
-Given data $(x_i, y_i, C_i)$, CACIS learns a calibrated predictive distribution $q(y \mid x)$ using a **cost-aware Fenchel–Young loss** regularized by entropy-regularized optimal transport.
+CACIS is built upon the theory of [Geometric Losses for Distributional Learning](https://arxiv.org/abs/1905.06005). It leverages entropic Optimal Transport (Sinkhorn) to shape the probability simplex according to the cost geometry.
 
-### Inference Policy
 
-CACIS decouples learning from decision-making, allowing flexibility at inference time:
+By regularizing the learning process with a cost-aware Sinkhorn negentropy, CACIS ensures that the model learns a distribution that is naturally "twisted" toward cost-effective decisions.
 
-1. **If a cost matrix $C$ is available**: use **expected-cost minimization**
-   ```math
-   \hat{k}(x, C) = \arg\min_k \sum_y q(y \mid x) \; c_{y,k}(C).
-   ```
-2. **If no cost matrix is available**: fall back to **standard probablistic classification**
-   ```math
-   \hat{y}(x) = \arg\max_y q(y \mid x).
-   ```
-
-For a deep dive into the math, see [math.md](math.md).
+You can read the math behind CACIS in the [math.md](math.md) file.
 
 ---
 
 ## 🚀 Quick Start
 
 ### Installation
+
+Please read [conda install instructions](https://harchaoui.org/warith/4ml) first
 
 ```bash
 # Clone the repository
@@ -69,29 +61,47 @@ labels = torch.randint(0, 10, (8,))
 costs = torch.rand(8, 10, 10)
 
 criterion = CACISLoss()
-loss = criterion(logits, labels, C=costs)
+# Returns (raw_loss, normalized_loss, is_normalized)
+output = criterion(logits, labels, C=costs)
+loss = output.loss
 loss.backward()
 ```
 
 ---
 
-## 🖼️ Featured Demo: ResNet on CIFAR-10
+## 🪩 Featured Demos
 
-We provide a comprehensive example using **fastText** semantic embeddings to define costs on CIFAR-10. This demo shows how mistakes between "similar" classes (e.g., Cat vs Dog) are penalized less than mistakes between "distant" classes (e.g., Cat vs Truck).
+### 1. ResNet on CIFAR-10 (Semantic Costs)
+
+We use **fastText** semantic embeddings to define costs on CIFAR-10. This demo shows how mistakes between "similar" classes (e.g., Cat vs Dog) are penalized less than mistakes between "distant" classes (e.g., Cat vs Truck) thanks to fastText semantic similarities.
 
 ```bash
+# Standard run
 python image_classification.py
+
+# Run with slow normalized CACIS reporting for better interpretation
+python image_classification.py --normalization
 ```
 
-**What this demo provides:**
-- Automatic download of fastText vectors.
-- Semantic cost matrix generation based on word embeddings.
-- Training a ResNet18 with CACIS loss.
-- **Real-time visualizations**:
-  - `images/cost_matrix.png`: The semantic distance structure.
-  - `images/loss_trajectory.png`: Optimization progress (normalized CACIS loss).
-  - `images/confusion_matrix_epoch_N.png`: Class-wise performance.
-  - `images/confusion_matrix_grouped_epoch_N.png`: High-level "Animal vs Vehicle" performance.
+![Loss trajectory](assets/image_loss_trajectory.png)
+
+### 2. IEEE-CIS Fraud Detection (Economic Costs)
+
+A tabular data demo on the Kaggle IEEE-CIS Fraud Detection dataset, where costs are directly proportional to transaction amounts.
+
+Download Kaggle IEEE-CIS Fraud Detection dataset:
+```bash
+mkdir ieee-fraud-detection
+wget -c http://deraison.ai/ai/ieee-fraud-detection.zip
+unzip ieee-fraud-detection.zip -d ieee-fraud-detection
+```
+
+Usage:
+```bash
+python fraud_detection.py
+```
+
+![Loss trajectory](assets/fraud_loss_trajectory.png)
 
 ---
 
@@ -100,15 +110,15 @@ python image_classification.py
 ```text
 cacis/
 ├── cacis/                  # Core package
-│   ├── nn/                 # Neural Network modules
+│   ├── nn/                 # Neural Network submodules
 │   │   └── __init__.py
 │   ├── loss.py             # CACISLoss implementation
-│   ├── utils.py            # Shared utilities
-│   └── __init__.py         # Public API
+│   ├── utils.py            # Shared utilities (logging, devices, plotting)
+│   └── __init__.py         # Public API (CACISLoss, utils)
 ├── image_classification.py # Image classification demo
 ├── fraud_detection.py      # Fraud detection demo
 ├── tests/                  # Unit tests
-├── math.md                 # Mathematical derivations
+├── math.md                 # Mathematical derivations (Deep dive)
 ├── setup.py                # Package configuration
 └── requirements.txt        # Dependencies
 ```
@@ -122,7 +132,25 @@ cacis/
 - [x] Comprehensive training examples (CIFAR-10 / fastText)
 - [ ] scikit-learn compatible `CACISClassifier`
 - [ ] Cost-aware conformal uncertainty
+- [ ] pip installable package on PyPI
 - [ ] Technical report / Whitepaper
+
+---
+
+## 📚 References
+
+If you use CACIS in your research, please cite:
+
+> Arthur Mensch, Mathieu Blondel, Gabriel Peyré. **Geometric Losses for Distributional Learning**. *arXiv preprint arXiv:1905.06005*, 2019. [[Paper]](https://arxiv.org/abs/1905.06005)
+
+```bibtex
+@article{mensch2019geometric,
+  title={Geometric Losses for Distributional Learning},
+  author={Mensch, Arthur and Blondel, Mathieu and Peyr{\'e}, Gabriel},
+  journal={arXiv preprint arXiv:1905.06005},
+  year={2019}
+}
+```
 
 ---
 
