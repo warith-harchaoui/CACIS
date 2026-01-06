@@ -161,10 +161,15 @@ def main() -> None:
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate")
     parser.add_argument("--quick", action="store_true", help="Quick run (few batches)")
     parser.add_argument("--out", default="images_output", help="Output directory")
+    parser.add_argument("--device", type=str, help="Device")
     args = parser.parse_args()
 
     setup_logging()
-    device = get_device()
+    if not args.device or args.device == "auto" or not (args.device in ["cpu", "cuda", "mps"]):
+        device = get_device()
+    else:
+        device = args.device
+
     logging.info("Using device: %s", device)
 
     OUTPUT_DIR = args.out
@@ -218,7 +223,8 @@ def main() -> None:
     # --------------------------------------------------------
     # Model
     # --------------------------------------------------------
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    # model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    model = models.resnet18(weights=None)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     model.to(device)
 
@@ -236,7 +242,7 @@ def main() -> None:
     logging.info("Starting training...")
     for epoch in range(args.epochs):
         model.train()
-        epoch_norm_sum = 0.0
+        loss_norm_sum = 0.0
         epoch_steps = 0
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}", total=len(train_loader))
@@ -249,20 +255,23 @@ def main() -> None:
             optimizer.zero_grad()
             scores = model(x)
 
-            loss, loss_norm = cacis_loss(scores, y, C=cost_matrix)
+            loss, loss_norm, _ = cacis_loss(scores, y, C=cost_matrix, normalize = True)
+            
 
             loss.backward()
             optimizer.step()
 
-            state.training_loss_history.append(loss_norm)
+            ell = loss_norm
+
+            state.training_loss_history.append(ell)
             state.current_iter += 1
 
-            epoch_norm_sum += loss_norm
+            loss_norm_sum += ell
             epoch_steps += 1
 
-            pbar.set_postfix({"loss_norm": f"{loss_norm:.4f}"})
+            pbar.set_postfix({"loss": f"{loss:.4f}", "loss_norm": f"{loss_norm:.4f}"})
 
-        logging.info("Epoch %02d | Mean normalized CACIS: %.4f", epoch + 1, epoch_norm_sum / max(1, epoch_steps))
+        logging.info("Epoch %02d | Mean normalized CACIS: %.4f", epoch + 1, loss_norm_sum / max(1, epoch_steps))
         state.epoch_iterations.append(state.current_iter)
 
         # ----------------------------------------------------
@@ -309,7 +318,8 @@ def main() -> None:
                     xticklabels=class_names, yticklabels=class_names)
         plt.title(f"Confusion matrix (epoch {epoch+1})")
         plt.tight_layout()
-        plt.savefig(OUTPUT_DIR / f"confusion_matrix_{epoch+1}.png")
+        fig_path = os.path.join(OUTPUT_DIR,f"confusion_matrix_{epoch+1}.png" )
+        plt.savefig(fig_path)
         plt.close()
 
         cm_group = grouped_confusion_matrix(cm, class_names)
@@ -318,7 +328,8 @@ def main() -> None:
                     xticklabels=["Animal", "Vehicle"], yticklabels=["Animal", "Vehicle"])
         plt.title(f"Grouped confusion (epoch {epoch+1})")
         plt.tight_layout()
-        plt.savefig(OUTPUT_DIR / f"confusion_matrix_grouped_{epoch+1}.png")
+        fig_path = os.path.join(OUTPUT_DIR, f"confusion_matrix_grouped_{epoch+1}.png")
+        plt.savefig(fig_path)
         plt.close()
 
     logging.info("Training finished.")

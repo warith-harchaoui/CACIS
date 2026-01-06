@@ -139,10 +139,10 @@ def plot_loss_trajectory(
     state: TrainingState,
     *,
     out_path: str = "images/loss_trajectory.png",
-    title: str = "CACIS Normalized Loss",
+    title: str = "CACIS Loss",
     ylabel: str = "Loss",
     ma_window: Optional[int] = 20,
-    y_limits: tuple[float, float] = (-0.1, 1.2),
+    normalize: bool = True,
 ) -> None:
     """
     Plot a CACIS loss trajectory.
@@ -177,12 +177,21 @@ def plot_loss_trajectory(
     plt.plot(
         state.training_loss_history,
         label="Training (step-wise)",
+        alpha=0.5,
+        color = "#007AFF"
     )
+
+    values = set()
+    values = values.union(set(list(state.training_loss_history)))
+
+
+
 
     # Optional moving average
     if ma_window is not None and len(state.training_loss_history) >= ma_window:
         smoothed = moving_average(np.asarray(state.training_loss_history), ma_window)
         plt.plot(smoothed, label=f"Training ({ma_window}-moving-average)", linewidth=3)
+        values = values.union(set(smoothed))
 
     # Optional test/validation curve at epoch boundaries
     if state.test_loss_history:
@@ -193,20 +202,27 @@ def plot_loss_trajectory(
             linewidth=3,
             color="#AF52DE"
         )
+        values = values.union(set(list(state.test_loss_history)))
 
     # Baseline reference lines
-    plt.axhline(1.0, linestyle="--", label="Cost-aware random guessing (1.0)", color="#FF3B30")
+    if normalize:
+        plt.axhline(1.0, linestyle="--", label="Cost-aware random guessing (1.0)", color="#FF3B30")
+        y_limits = (-0.1, 1.2)
+    else:
+        M = np.quantile(np.array(list(values)), 0.95)
+        y_limits = (-0.1 * M, 1.2 * M)
+
     plt.axhline(0.0, linestyle="--", label="Perfect (0.0)", color="#28CD41")
 
     # Epoch markers
     b = True
     for it in state.epoch_iterations:
         plt.axvline(it, color="gray", linestyle=":", label="Epochs" if b else None)
-        b = not b
+        b = False
 
-    plt.xlabel(f"Iterations (1 iter = 1 mini-batch; batch_size={state.batch_size})")
+    plt.xlabel(f"Iterations (1 iter = 1 mini-batch = {state.batch_size} examples)")
     plt.ylabel(ylabel)
-    plt.title(title)
+    plt.title(title + "\n(the lower, the better)")
     plt.ylim(*y_limits)
 
     if state.epoch_iterations:

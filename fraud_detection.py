@@ -54,6 +54,7 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+from sklearn.model_selection import train_test_split
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -148,17 +149,23 @@ class LogisticModel(nn.Module):
 # Main
 # ============================================================
 
-def main() -> None:
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CACIS fraud detection demo (IEEE-CIS)")
-    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs")
+    parser.add_argument("--epochs", type=int, default=30, help="Number of epochs")
     parser.add_argument("--batch-size", type=int, default=512, help="Mini-batch size")
-    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
     parser.add_argument("--quick", action="store_true", help="Quick run (few batches)")
     parser.add_argument("--out", type=str, default="fraud_output", help="Output directory")
+    parser.add_argument("--split", type=float, default=0.4, help="Test split")
+    parser.add_argument("--device", type=str, help="Device")
     args = parser.parse_args()
 
     setup_logging()
-    device = get_device()
+    if not args.device or args.device == "auto" or not (args.device in ["cpu", "cuda", "mps"]):
+        device = get_device()
+    else:
+        device = args.device
+
     logging.info("Using device: %s", device)
 
     OUTPUT_DIR = args.out   
@@ -167,19 +174,27 @@ def main() -> None:
 
 
     # --------------------------------------------------------
-    # Load train / test (official Kaggle split)
+    # Load and split train data (stratified split for test)
     # --------------------------------------------------------
     data_folder = "ieee-fraud-detection"
-    data_files = ["train_transaction.csv", "test_transaction.csv"]
-    data_files = [os.path.join(data_folder, f) for f in data_files]
+    train_csv = os.path.join(data_folder, "train_transaction.csv")
     dwnld_msg = "rm -rf ieee-fraud-detection.zip ieee-fraud-detection || true\nmkdir ieee-fraud-detection\nwget -c http://deraison.ai/ai/ieee-fraud-detection.zip\nunzip ieee-fraud-detection.zip -d ieee-fraud-detection"
-    for f in data_files:
-        if not Path(f).exists():
-            logging.error("Missing file: %s\nRun:\n%s", f, dwnld_msg)
-            return
+    
+    if not Path(train_csv).exists():
+        logging.error("Missing file: %s\nRun:\n%s", train_csv, dwnld_msg)
+        # return
 
-    train_df = pd.read_csv(data_files[0])
-    test_df = pd.read_csv(data_files[1])
+    full_df = pd.read_csv(train_csv)
+    
+    split = args.split
+    train_df, test_df = train_test_split(
+        full_df, 
+        test_size=split, 
+        stratify=full_df["isFraud"], 
+        random_state=42
+    )
+    
+    logging.info("Split data: train=%d, test=%d", len(train_df), len(test_df))
 
     # Add a *feature* column with log amount, but keep TransactionAmt raw.
     # Feature side: you MAY add log(amt) but must keep amt itself raw.
@@ -203,11 +218,12 @@ def main() -> None:
 
     logging.info("Final feature dimension: %d", len(feature_cols))
 
+
     # --------------------------------------------------------
     # DataLoaders
     # --------------------------------------------------------
     train_ds = FraudTrainDataset(train_df, feature_cols)
-    test_ds = FraudTestDataset(test_df, feature_cols)
+    test_ds = FraudTrainDataset(test_df, feature_cols)
 
     batch_size = args.batch_size
     state = TrainingState(batch_size=batch_size)
@@ -225,6 +241,13 @@ def main() -> None:
 
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
 
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer,
+        mode="min",
+        factor=0.5,
+        patience=1,
+    )
+
 
     # --------------------------------------------------------
     # Training loop (convergence on normalized CACIS)
@@ -233,7 +256,7 @@ def main() -> None:
 
     for epoch in range(args.epochs):
         model.train()
-        epoch_norm_sum = 0.0
+        loss_sum = 0.0
         epoch_steps = 0
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}", total=len(train_loader))
@@ -246,29 +269,52 @@ def main() -> None:
             optimizer.zero_grad()
             scores = model(x)
 
-            loss, loss_norm = cacis_loss(scores, y, C=C)
+            loss, _, _ = cacis_loss(scores, y, C=C, normalize=False)
 
             loss.backward()
             optimizer.step()
 
-            state.training_loss_history.append(loss_norm)
+            ell = loss.item()
+
+            state.training_loss_history.append(ell)
             state.current_iter += 1
 
-            epoch_norm_sum += loss_norm
+            loss_sum += ell
             epoch_steps += 1
 
-            pbar.set_postfix({"loss_norm": f"{loss_norm:.4f}"})
+            pbar.set_postfix({"loss": f"{int(ell):04d}"})
 
         state.epoch_iterations.append(state.current_iter)
-        logging.info("Epoch %02d | Mean normalized CACIS: %.4f", epoch + 1, epoch_norm_sum / max(1, epoch_steps))
+        logging.info("Epoch %02d | Mean loss: %.4f", epoch + 1, loss_sum / max(1, epoch_steps))
 
+        model.eval()
+        test_loss_sum = 0.0
+        test_steps = 0
+
+        for (x, y, C) in test_loader:
+            x, y, C = x.to(device), y.to(device), C.to(device)
+            scores = model(x)
+            loss, _, _ = cacis_loss(scores, y, C=C, normalize=False)
+            ell = loss.item()
+            test_loss_sum += ell
+            test_steps += 1
+
+        test_loss = test_loss_sum / max(1, test_steps)
+        state.test_loss_history.append(test_loss)
+
+        scheduler.step(test_loss)
+
+        logging.info("Epoch %02d | Test CACIS: %.4f", epoch + 1, test_loss)
+
+        # Plot loss trajectory
         plot_loss_trajectory(
             state,
-            out_path=os.path.join(OUTPUT_DIR, "fraud_loss_trajectory.png"),
-            title="CACIS Normalized Loss — IEEE-CIS Fraud Detection",
+            out_path = os.path.join(OUTPUT_DIR, "loss_trajectory.png"),
+            title="Optimization Trajectory for IEEE-CIS Fraud Detection",
+            normalize=False,
         )
 
-    logging.info("Training finished.")
+
 
     # --------------------------------------------------------
     # Score test set and save predictions (Kaggle-style)
@@ -276,11 +322,18 @@ def main() -> None:
     model.eval()
     probs: List[float] = []
     with torch.no_grad():
-        for x in tqdm(test_loader, desc="Scoring test"):
+        for (x, y, C) in tqdm(test_loader, desc="Scoring test"):
             x = x.to(device)
             s = model(x)
             p = torch.softmax(s, dim=1)[:, 1]
             probs.extend(p.cpu().numpy().tolist())
+
+
+        test_norm = test_loss_sum / max(1, test_steps)
+        state.test_loss_history.append(test_norm)
+
+
+
 
     out_csv = os.path.join(OUTPUT_DIR, "test_predictions.csv")
     if "TransactionID" in test_df.columns:
@@ -294,5 +347,3 @@ def main() -> None:
     logging.info("Demo finished successfully.")
 
 
-if __name__ == "__main__":
-    main()
