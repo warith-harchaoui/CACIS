@@ -209,7 +209,7 @@ def plot_loss_trajectory(
         plt.axhline(1.0, linestyle="--", label="Cost-aware random guessing (1.0)", color="#FF3B30")
         y_limits = (-0.1, 1.2)
     else:
-        M = np.quantile(np.array(list(values)), 0.95)
+        M = np.quantile(np.array(list(values)), 0.90)
         y_limits = (-0.1 * M, 1.2 * M)
 
     plt.axhline(0.0, linestyle="--", label="Perfect (0.0)", color="#28CD41")
@@ -238,3 +238,6 @@ def plot_loss_trajectory(
     plt.tight_layout()
     plt.savefig(out_path)
     plt.close()
+
+    o = out_path.replace(".png", ".txt")
+    np.savetxt(o, state.training_loss_history)

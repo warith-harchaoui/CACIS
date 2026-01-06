@@ -101,13 +101,13 @@ python image_classification.py
 cacis/
 ├── cacis/                  # Core package
 │   ├── nn/                 # Neural Network modules
-│   │   ├── __init__.py
-│   │   └── loss.py         # CACISLoss implementation
+│   │   └── __init__.py
+│   ├── loss.py             # CACISLoss implementation
+│   ├── utils.py            # Shared utilities
 │   └── __init__.py         # Public API
 ├── image_classification.py # Image classification demo
 ├── fraud_detection.py      # Fraud detection demo
 ├── tests/                  # Unit tests
-├── utils.py                # Shared utilities
 ├── math.md                 # Mathematical derivations
 ├── setup.py                # Package configuration
 └── requirements.txt        # Dependencies

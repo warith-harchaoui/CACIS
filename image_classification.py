@@ -47,8 +47,8 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, models, transforms
 from tqdm import tqdm
 
-from cacis.nn.loss import CACISLoss
-from utils import TrainingState, get_device, plot_loss_trajectory, setup_logging
+from cacis.loss import CACISLoss
+from cacis.utils import TrainingState, get_device, plot_loss_trajectory, setup_logging
 
 import os
 
@@ -162,6 +162,7 @@ def main() -> None:
     parser.add_argument("--quick", action="store_true", help="Quick run (few batches)")
     parser.add_argument("--out", default="images_output", help="Output directory")
     parser.add_argument("--device", type=str, help="Device")
+    parser.add_argument("--normalization", action="store_true", help="Slow normalized CACIS Loss")
     args = parser.parse_args()
 
     setup_logging()
@@ -236,13 +237,15 @@ def main() -> None:
 
     state = TrainingState(batch_size=args.batch_size)
 
+    normalization = args.normalization
+
     # --------------------------------------------------------
     # Training loop
     # --------------------------------------------------------
     logging.info("Starting training...")
     for epoch in range(args.epochs):
         model.train()
-        loss_norm_sum = 0.0
+        loss_sum = 0.0
         epoch_steps = 0
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{args.epochs}", total=len(train_loader))
@@ -255,23 +258,31 @@ def main() -> None:
             optimizer.zero_grad()
             scores = model(x)
 
-            loss, loss_norm, _ = cacis_loss(scores, y, C=cost_matrix, normalize = True)
+            loss, loss_norm, _ = cacis_loss(scores, y, C=cost_matrix, normalize = normalization)
             
 
             loss.backward()
             optimizer.step()
 
-            ell = loss_norm
+            if normalization:
+                ell = loss_norm
+            else:
+                ell = loss.item()
 
             state.training_loss_history.append(ell)
             state.current_iter += 1
 
-            loss_norm_sum += ell
+            loss_sum += ell
             epoch_steps += 1
 
-            pbar.set_postfix({"loss": f"{loss:.4f}", "loss_norm": f"{loss_norm:.4f}"})
+            d = {"loss": f"{loss:.4f}"}
+            
+            if normalization:
+                d["loss_norm"] = f"{loss_norm:.4f}"
 
-        logging.info("Epoch %02d | Mean normalized CACIS: %.4f", epoch + 1, loss_norm_sum / max(1, epoch_steps))
+            pbar.set_postfix(d)
+
+        logging.info("Epoch %02d | Mean %sCACIS: %.4f", epoch + 1, "normalized " if normalization else "",  loss_sum / max(1, epoch_steps))
         state.epoch_iterations.append(state.current_iter)
 
         # ----------------------------------------------------
@@ -280,7 +291,7 @@ def main() -> None:
         model.eval()
         y_true: List[int] = []
         y_pred: List[int] = []
-        test_norm_sum = 0.0
+        test_sum = 0.0
         test_steps = 0
 
         with torch.no_grad():
@@ -291,18 +302,22 @@ def main() -> None:
                 x, y = x.to(device), y.to(device)
                 scores = model(x)
 
-                _, loss_norm = cacis_loss(scores, y, C=cost_matrix)
-                test_norm_sum += loss_norm
+                loss, loss_norm = cacis_loss(scores, y, C=cost_matrix)
+                ell = loss
+                if normalization:
+                    ell = loss_norm
+
+                test_sum += ell
                 test_steps += 1
 
                 preds = scores.argmax(dim=1)
                 y_true.extend(y.cpu().numpy().tolist())
                 y_pred.extend(preds.cpu().numpy().tolist())
 
-        test_norm = test_norm_sum / max(1, test_steps)
-        state.test_loss_history.append(test_norm)
+        test_loss = test_sum / max(1, test_steps)
+        state.test_loss_history.append(test_loss)
 
-        logging.info("Epoch %02d | Test normalized CACIS: %.4f", epoch + 1, test_norm)
+        logging.info("Epoch %02d | Test %sCACIS: %.4f", epoch + 1, "normalized " if normalization else "", test_loss)
 
         # Plot loss trajectory
         plot_loss_trajectory(
